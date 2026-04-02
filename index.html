@@ -753,6 +753,37 @@ textarea.fi{resize:vertical;min-height:80px}
 </div>
 
 <script>
+// ══════════════════════════════════════════════════════════════
+// API CONNECTION
+// ══════════════════════════════════════════════════════════════
+var API_URL = 'https://prolistings-api-production.up.railway.app';
+var authToken = null;
+
+function getToken() {
+  try { return authToken || localStorage.getItem('pl_token'); } catch(e) { return authToken; }
+}
+
+function setToken(t) {
+  authToken = t;
+  try { if (t) localStorage.setItem('pl_token', t); else localStorage.removeItem('pl_token'); } catch(e) {}
+}
+
+function apiCall(method, path, body) {
+  var opts = {
+    method: method,
+    headers: { 'Content-Type': 'application/json' }
+  };
+  var token = getToken();
+  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+  if (body) opts.body = JSON.stringify(body);
+  return fetch(API_URL + path, opts).then(function(r) { return r.json(); });
+}
+
+function apiGet(path)         { return apiCall('GET', path); }
+function apiPost(path, body)  { return apiCall('POST', path, body); }
+function apiPut(path, body)   { return apiCall('PUT', path, body); }
+function apiDel(path)         { return apiCall('DELETE', path); }
+
 var SECTIONS = ['dashboard','leads','pipeline','funnel','scraper','skiptrace','bankruptcy','import','calls','tasks','team','alerts'];
 var TITLES = {dashboard:'Dashboard',leads:'All Leads',pipeline:'Pipeline',funnel:'Conversion Funnel',scraper:'Data Scraper',skiptrace:'AI Skip Trace',bankruptcy:'Bankruptcy Checker',import:'Import & Sources',calls:'Call Log',tasks:'Tasks & Follow-Ups',team:'Team',alerts:'Alerts & Notifications'};
 
@@ -1524,6 +1555,7 @@ function attemptLogin() {
   var email = (document.getElementById('login-email').value || '').trim().toLowerCase();
   var pin   = (document.getElementById('login-pin').value || '').trim();
   var errEl = document.getElementById('login-error');
+  var btn   = document.querySelector('.login-btn');
 
   if (!email || !pin) {
     errEl.textContent = 'Please enter your email and PIN.';
@@ -1531,34 +1563,30 @@ function attemptLogin() {
     return;
   }
 
-  // Find matching team member
-  var match = null;
-  for (var i = 0; i < TEAM.length; i++) {
-    var m = TEAM[i];
-    if ((m.email || '').toLowerCase() === email && (m.pin || '') === pin) {
-      match = m;
-      break;
-    }
-  }
-
-  if (!match) {
-    errEl.textContent = 'Incorrect email or PIN. Please try again.';
-    errEl.classList.add('show');
-    document.getElementById('login-pin').value = '';
-    return;
-  }
-
-  // Successful login
+  // Show loading state
+  if (btn) { btn.textContent = 'Signing in...'; btn.disabled = true; }
   errEl.classList.remove('show');
-  currentUser = match;
 
-  // Save session to localStorage so they stay logged in on refresh
-  _ls.setItem('pl_session', JSON.stringify({id: match.id, ts: Date.now()}));
-
-  // Mark member as online
-  markOnline(match.id, true);
-
-  showApp();
+  apiPost('/api/auth/login', {email: email, pin: pin})
+    .then(function(res) {
+      if (btn) { btn.textContent = 'Sign In'; btn.disabled = false; }
+      if (res.error) {
+        errEl.textContent = res.error;
+        errEl.classList.add('show');
+        document.getElementById('login-pin').value = '';
+        return;
+      }
+      // Success
+      setToken(res.token);
+      currentUser = res.member;
+      showApp();
+      loadDashboard();
+    })
+    .catch(function() {
+      if (btn) { btn.textContent = 'Sign In'; btn.disabled = false; }
+      errEl.textContent = 'Could not connect to server. Check your connection.';
+      errEl.classList.add('show');
+    });
 }
 
 function showApp() {
@@ -1686,30 +1714,207 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+// ══════════════════════════════════════════════════════════════
+// LIVE DATA LOADING FROM API
+// ══════════════════════════════════════════════════════════════
+
+function loadDashboard() {
+  // Load stats
+  apiGet('/api/stats').then(function(stats) {
+    if (stats.error) return;
+    var el;
+    el = document.getElementById('stat-total'); if(el) el.textContent = stats.total || 0;
+    el = document.getElementById('stat-hot');   if(el) el.textContent = stats.hot || 0;
+    el = document.getElementById('pipe-new');       if(el) el.textContent = (stats.by_status && stats.by_status.new) || 0;
+    el = document.getElementById('pipe-contacted'); if(el) el.textContent = (stats.by_status && stats.by_status.contacted) || 0;
+    el = document.getElementById('pipe-qualified'); if(el) el.textContent = (stats.by_status && stats.by_status.qualified) || 0;
+    el = document.getElementById('pipe-hotlead');   if(el) el.textContent = (stats.by_status && stats.by_status.hotlead) || 0;
+    // State bars
+    var total = stats.total || 1;
+    var byState = stats.by_state || {};
+    el = document.getElementById('state-count-va'); if(el) el.textContent = byState.VA || 0;
+    el = document.getElementById('state-count-md'); if(el) el.textContent = byState.MD || 0;
+    el = document.getElementById('state-count-dc'); if(el) el.textContent = byState.DC || 0;
+    var maxState = Math.max(byState.VA||0, byState.MD||0, byState.DC||0, 1);
+    el = document.getElementById('state-bar-va'); if(el) el.style.width = Math.round((byState.VA||0)/maxState*100)+'%';
+    el = document.getElementById('state-bar-md'); if(el) el.style.width = Math.round((byState.MD||0)/maxState*100)+'%';
+    el = document.getElementById('state-bar-dc'); if(el) el.style.width = Math.round((byState.DC||0)/maxState*100)+'%';
+  }).catch(function(){});
+
+  // Load activity feed
+  apiGet('/api/activity').then(function(items) {
+    if (!Array.isArray(items)) return;
+    var feed = document.querySelector('#s-dashboard .act:first-child') &&
+               document.querySelector('#s-dashboard .ph + div');
+    // Activity feed update could go here
+  }).catch(function(){});
+}
+
+function loadLeads() {
+  var tbody = document.getElementById('leads-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--ink3)">Loading leads...</td></tr>';
+
+  apiGet('/api/leads').then(function(leads) {
+    if (!Array.isArray(leads)) {
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--red)">Error loading leads</td></tr>';
+      return;
+    }
+    if (leads.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--ink3)">No leads yet. Run the scraper to pull live data.</td></tr>';
+      return;
+    }
+
+    var PILL = {new:'p-new',contacted:'p-con',qualified:'p-qual',hotlead:'p-hot',dead:'p-dead',offer_made:'p-qual',negotiating:'p-qual',under_contract:'p-hot',closed:'p-qual'};
+    var LABEL = {new:'New',contacted:'Contacted',qualified:'Qualified',hotlead:'Hot Lead',dead:'Dead',offer_made:'Offer Made',negotiating:'Negotiating',under_contract:'Under Contract',closed:'Closed'};
+    var STATE_PILL = {VA:'p-va',MD:'p-md',DC:'p-dc'};
+
+    tbody.innerHTML = leads.map(function(l) {
+      var status = l.status || 'new';
+      var state  = (l.state || '').toUpperCase();
+      var days   = l.days_until_auction;
+      var daysStr = days !== null && days !== undefined ? (days <= 14 ? '<span style="color:var(--red);font-weight:500">'+days+' days!</span>' : days+' days') : '—';
+      var assigned = l.team ? '<div class="av" style="background:'+(l.team.bg||'#1a6b4a')+';color:'+(l.team.fg||'#d4ede3')+';width:22px;height:22px;font-size:8px">'+((l.team.first||'')[0]||'')+(((l.team.last||'')[0])||'')+'</div>' : '<span style="color:var(--ink4)">—</span>';
+      var skipEl = l.skip_traced ? '<span style="color:var(--green);font-family:var(--mono);font-size:10px">✓ traced</span>' : '<span style="color:var(--ink4);font-family:var(--mono);font-size:10px">Pending</span>';
+      return '<tr class="hov" data-status="'+status+'" data-id="'+l.id+'" onclick="openLeadById(\''+l.id+'\')">' +
+        '<td onclick="event.stopPropagation()"><input type="checkbox"></td>' +
+        '<td style="font-weight:500">'+(l.owner_name||'')+'</td>' +
+        '<td>'+(l.property_address||'')+'</td>' +
+        '<td><span class="pill '+(STATE_PILL[state]||'p-va')+'">'+state+'</span></td>' +
+        '<td style="font-family:var(--mono);font-size:11px">'+(l.phone_1||'—')+'</td>' +
+        '<td style="font-family:var(--mono);font-size:11px">'+(l.nod_date||'—')+'</td>' +
+        '<td style="font-family:var(--mono);font-size:11px">'+(l.auction_date||'—')+'</td>' +
+        '<td>'+skipEl+'</td>' +
+        '<td>'+assigned+'</td>' +
+        '<td><span class="pill '+(PILL[status]||'p-new')+'">'+(LABEL[status]||status)+'</span></td>' +
+        '</tr>';
+    }).join('');
+
+    // Update count
+    var countEl = document.querySelector('.pht span');
+    if (countEl) countEl.textContent = leads.length + ' leads';
+
+    // Update sidebar badge
+    var badge = document.querySelector('.ni[onclick*="leads"] .nbadge');
+    if (badge) badge.textContent = leads.length;
+
+    filterLeads();
+    syncDashboard();
+  }).catch(function() {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--red)">Could not connect to server</td></tr>';
+  });
+}
+
+function openLeadById(id) {
+  apiGet('/api/leads/' + id).then(function(lead) {
+    if (lead.error) return;
+    openLead(lead.owner_name, lead.property_address + ', ' + (lead.state||''), lead.status || 'new', null);
+    // Store lead ID for save
+    document.getElementById('m-status').dataset.leadId = id;
+  }).catch(function(){});
+}
+
+function loadTeamFromApi() {
+  apiGet('/api/team').then(function(members) {
+    if (!Array.isArray(members)) return;
+    // Update TEAM array with live data
+    TEAM = members.map(function(m) {
+      return {
+        id: m.id, first: m.first, last: m.last,
+        role: m.role, email: m.email, phone: m.phone||'',
+        bg: m.bg||'#1a6b4a', fg: m.fg||'#d4ede3',
+        is_admin: m.is_admin, online: m.online,
+        calls: 0, leads: 0, closed: 0
+      };
+    });
+    renderTeam();
+    renderSidebar();
+  }).catch(function(){});
+}
+
+function triggerScraper() {
+  var btn = document.querySelector('#s-scraper .btn-g');
+  if (btn) { btn.textContent = '⏳ Running...'; btn.disabled = true; }
+
+  apiPost('/api/scrape', {}).then(function(res) {
+    if (btn) { btn.textContent = '▶ Run Scraper'; btn.disabled = false; }
+    if (res.ok) {
+      alert('Scraper started! Check back in a few minutes for new leads.');
+    }
+  }).catch(function() {
+    if (btn) { btn.textContent = '▶ Run Scraper'; btn.disabled = false; }
+  });
+}
+
+// Override nav to load live data when switching sections
+var _origNav = nav;
+function nav(el, id) {
+  _origNav(el, id);
+  if (!getToken()) return;
+  if (id === 'leads')    loadLeads();
+  if (id === 'dashboard') loadDashboard();
+  if (id === 'team')     loadTeamFromApi();
+}
+
+// Override saveLeadChanges to save to API
+var _origSaveLeadChanges = saveLeadChanges;
+function saveLeadChanges() {
+  var leadId = document.getElementById('m-status') && document.getElementById('m-status').dataset.leadId;
+  if (!leadId) { _origSaveLeadChanges(); return; }
+
+  var newStatus = document.getElementById('m-status').value;
+  var assignedSel = document.getElementById('m-assigned');
+  var assignedId = assignedSel ? assignedSel.value : '';
+
+  apiPut('/api/leads/' + leadId, {
+    status: newStatus,
+    assigned_to: assignedId || null
+  }).then(function() {
+    _origSaveLeadChanges();
+    loadLeads();
+    loadDashboard();
+  }).catch(function() {
+    _origSaveLeadChanges();
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+
 renderTeam();
 syncDashboard();
 
-// Wrap startup in DOMContentLoaded to ensure DOM is fully ready in all browsers
 function startApp() {
   try {
-    var hasCreds = TEAM.some(function(m) { return m.email && m.pin; });
-
-    if (restoreSession()) {
-      showApp();
-    } else if (!hasCreds) {
-      showApp();
+    var token = getToken();
+    if (token) {
+      // Verify token is still valid
+      authToken = token;
+      apiGet('/api/auth/me').then(function(res) {
+        if (res.error) {
+          setToken(null);
+          showLoginScreen();
+        } else {
+          currentUser = res;
+          showApp();
+          loadDashboard();
+          loadTeamFromApi();
+        }
+      }).catch(function() {
+        showLoginScreen();
+      });
     } else {
-      var ls2 = document.getElementById('login-screen');
-      var aw2 = document.getElementById('app-wrap');
-      if (ls2) { ls2.classList.add('visible'); ls2.style.display = 'flex'; }
-      if (aw2) { aw2.classList.remove('visible'); aw2.style.display = 'none'; }
+      showLoginScreen();
     }
   } catch(e) {
-    try {
-      var ls3 = document.getElementById('login-screen');
-      if (ls3) { ls3.classList.add('visible'); ls3.style.display = 'flex'; }
-    } catch(e2) {}
+    showLoginScreen();
   }
+}
+
+function showLoginScreen() {
+  var ls = document.getElementById('login-screen');
+  var aw = document.getElementById('app-wrap');
+  if (ls) { ls.classList.add('visible'); ls.style.display = 'flex'; }
+  if (aw) { aw.classList.remove('visible'); aw.style.display = 'none'; }
 }
 
 if (document.readyState === 'loading') {
