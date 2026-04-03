@@ -1846,15 +1846,15 @@ function triggerScraper() {
   });
 }
 
-// Override nav to load live data when switching sections
-var _origNav = nav;
-function nav(el, id) {
-  _origNav(el, id);
+// Patch nav to load live data when switching sections
+var _navOriginal = nav;
+nav = function(el, id) {
+  _navOriginal(el, id);
   if (!getToken()) return;
-  if (id === 'leads')    loadLeads();
+  if (id === 'leads')     loadLeads();
   if (id === 'dashboard') loadDashboard();
-  if (id === 'team')     loadTeamFromApi();
-}
+  if (id === 'team')      loadTeamFromApi();
+};
 
 // Override saveLeadChanges to save to API
 var _origSaveLeadChanges = saveLeadChanges;
@@ -1887,11 +1887,11 @@ function startApp() {
   try {
     var token = getToken();
     if (token) {
-      // Verify token is still valid
       authToken = token;
       apiGet('/api/auth/me').then(function(res) {
         if (res.error) {
           setToken(null);
+          authToken = null;
           showLoginScreen();
         } else {
           currentUser = res;
