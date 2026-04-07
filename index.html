@@ -497,24 +497,80 @@ textarea.fi{resize:vertical;min-height:80px}
 
   <!-- IMPORT -->
   <div class="sec" id="s-import">
-    <div class="g2" style="margin-bottom:16px">
-      <div class="panel">
-        <div class="ph"><div class="pht">Upload CSV / Excel</div></div>
-        <div style="padding:18px"><div class="drop"><div style="font-size:26px;margin-bottom:10px">↑</div><div style="font-size:13px;font-weight:500;margin-bottom:4px">Drop your file here</div><div style="font-size:11px;color:var(--ink3)">NOD exports, PropStream lists, BatchLeads — auto-mapped</div><div style="margin-top:14px"><button class="btn">Browse File</button></div></div></div>
+    <!-- BatchSkipTracing Workflow -->
+    <div class="panel" style="margin-bottom:16px">
+      <div class="ph">
+        <div><div class="pht">BatchSkipTracing Workflow</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--ink3);margin-top:2px">Export leads → Upload to BatchSkipTracing → Import results back</div></div>
       </div>
-      <div class="panel">
-        <div class="ph"><div class="pht">API Connections</div></div>
-        <div style="padding:16px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div class="srcc on"><div style="font-size:18px;margin-bottom:6px">🏛</div><div style="font-size:12px;font-weight:500;margin-bottom:3px">ATTOM Data</div><div style="font-size:11px;color:var(--ink3)">Property &amp; foreclosure API</div><div style="font-family:var(--mono);font-size:9px;margin-top:6px;color:var(--green)">● Connected</div></div>
-          <div class="srcc"><div style="font-size:18px;margin-bottom:6px">📊</div><div style="font-size:12px;font-weight:500;margin-bottom:3px">PropStream</div><div style="font-size:11px;color:var(--ink3)">Pre-foreclosure &amp; MLS data</div><div style="font-family:var(--mono);font-size:9px;margin-top:6px;color:var(--amber)">○ Add API Key</div></div>
-          <div class="srcc"><div style="font-size:18px;margin-bottom:6px">📋</div><div style="font-size:12px;font-weight:500;margin-bottom:3px">BatchLeads</div><div style="font-size:11px;color:var(--ink3)">Leads + skip tracing</div><div style="font-family:var(--mono);font-size:9px;margin-top:6px;color:var(--amber)">○ Add API Key</div></div>
-          <div class="srcc"><div style="font-size:18px;margin-bottom:6px">⚖️</div><div style="font-size:12px;font-weight:500;margin-bottom:3px">PACER</div><div style="font-size:11px;color:var(--ink3)">Federal court records</div><div style="font-family:var(--mono);font-size:9px;margin-top:6px;color:var(--amber)">○ Add Credentials</div></div>
-        </div></div>
+      <div style="padding:18px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+        <!-- Step 1 -->
+        <div style="text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px">
+          <div style="font-size:28px;margin-bottom:8px">1️⃣</div>
+          <div style="font-weight:600;margin-bottom:4px">Export Leads</div>
+          <div style="font-size:11px;color:var(--ink3);margin-bottom:12px">Download your leads as a CSV formatted for BatchSkipTracing</div>
+          <div class="frow"><label class="fl">Export Filter</label>
+            <select class="fsel" id="export-filter">
+              <option value="untraced">Un-traced leads only</option>
+              <option value="all">All leads</option>
+              <option value="VA">Virginia only</option>
+              <option value="MD">Maryland only</option>
+              <option value="DC">DC only</option>
+            </select>
+          </div>
+          <button class="btn btn-g" style="width:100%;margin-top:8px" onclick="exportForBatchSkip()">⬇ Export CSV</button>
+        </div>
+        <!-- Step 2 -->
+        <div style="text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px">
+          <div style="font-size:28px;margin-bottom:8px">2️⃣</div>
+          <div style="font-weight:600;margin-bottom:4px">Upload to BatchSkipTracing</div>
+          <div style="font-size:11px;color:var(--ink3);margin-bottom:12px">Go to batchskiptracing.com → Upload CSV → Download results when ready</div>
+          <a href="https://batchskiptracing.com" target="_blank" class="btn btn-g" style="width:100%;display:block;text-align:center;text-decoration:none;box-sizing:border-box">↗ Open BatchSkipTracing</a>
+          <div style="font-size:10px;color:var(--ink4);margin-top:8px">~$0.10 per lead · Results ready in minutes</div>
+        </div>
+        <!-- Step 3 -->
+        <div style="text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px">
+          <div style="font-size:28px;margin-bottom:8px">3️⃣</div>
+          <div style="font-weight:600;margin-bottom:4px">Import Results</div>
+          <div style="font-size:11px;color:var(--ink3);margin-bottom:12px">Upload the results CSV from BatchSkipTracing to update your leads</div>
+          <div class="drop" style="padding:12px;cursor:pointer" onclick="document.getElementById('bsk-import-file').click()">
+            <div style="font-size:20px">📂</div>
+            <div style="font-size:11px;margin-top:4px">Drop results CSV here or click to browse</div>
+          </div>
+          <input type="file" id="bsk-import-file" accept=".csv" style="display:none" onchange="importBatchSkipResults(this)">
+        </div>
       </div>
     </div>
+
+    <!-- Import Status -->
+    <div class="panel" id="import-status" style="display:none;margin-bottom:16px">
+      <div class="ph"><div class="pht" id="import-status-title">Import Status</div></div>
+      <div style="padding:16px" id="import-status-body"></div>
+    </div>
+
+    <!-- Other Sources -->
     <div class="g2">
-      <div class="panel"><div class="ph"><div class="pht">Virginia County Sources</div></div><div style="padding:14px 18px"><span class="ctag">Fairfax County Circuit Court</span><span class="ctag">Prince William County</span><span class="ctag">Loudoun County Clerk</span><span class="ctag">Arlington County</span><span class="ctag">Alexandria City Court</span><span class="ctag">Stafford County</span></div></div>
-      <div class="panel"><div class="ph"><div class="pht">Maryland &amp; DC Sources</div></div><div style="padding:14px 18px"><span class="ctag">Montgomery Co. Circuit</span><span class="ctag">Prince George's Land Records</span><span class="ctag">Howard County Circuit</span><span class="ctag">Anne Arundel County</span><span class="ctag">DC Superior Court</span><span class="ctag">DC Recorder of Deeds</span></div></div>
+      <div class="panel">
+        <div class="ph"><div class="pht">Other CSV Import</div></div>
+        <div style="padding:18px">
+          <div class="drop" onclick="document.getElementById('csv-import-file').click()">
+            <div style="font-size:26px;margin-bottom:10px">↑</div>
+            <div style="font-size:13px;font-weight:500;margin-bottom:4px">Drop your file here</div>
+            <div style="font-size:11px;color:var(--ink3)">PropStream, BatchLeads, NOD exports — auto-mapped</div>
+            <div style="margin-top:14px"><button class="btn">Browse File</button></div>
+          </div>
+          <input type="file" id="csv-import-file" accept=".csv,.xlsx" style="display:none">
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><div class="pht">Connected Sources</div></div>
+        <div style="padding:16px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="srcc on"><div style="font-size:18px;margin-bottom:6px">🏛</div><div style="font-size:12px;font-weight:500;margin-bottom:3px">ATTOM Data</div><div style="font-size:11px;color:var(--ink3)">Property owner lookup</div><div style="font-family:var(--mono);font-size:9px;margin-top:6px;color:var(--green)">● Connected</div></div>
+          <div class="srcc"><div style="font-size:18px;margin-bottom:6px">📞</div><div style="font-size:12px;font-weight:500;margin-bottom:3px">BatchSkipTracing</div><div style="font-size:11px;color:var(--ink3)">Phone number lookup</div><div style="font-family:var(--mono);font-size:9px;margin-top:6px;color:var(--amber)">○ Add Credits</div></div>
+          <div class="srcc"><div style="font-size:18px;margin-bottom:6px">📋</div><div style="font-size:12px;font-weight:500;margin-bottom:3px">Rosenberg</div><div style="font-size:11px;color:var(--ink3)">MD/VA/DC foreclosures</div><div style="font-family:var(--mono);font-size:9px;margin-top:6px;color:var(--green)">● Active</div></div>
+          <div class="srcc"><div style="font-size:18px;margin-bottom:6px">⚖️</div><div style="font-size:12px;font-weight:500;margin-bottom:3px">CourtListener</div><div style="font-size:11px;color:var(--ink3)">Bankruptcy records</div><div style="font-family:var(--mono);font-size:9px;margin-top:6px;color:var(--green)">● Connected</div></div>
+        </div></div>
+      </div>
     </div>
   </div>
 
@@ -2071,6 +2127,218 @@ function updateSkipTraceCount() {
     var info = document.getElementById('bulk-trace-info');
     if (info) info.textContent = pending + ' leads pending skip trace. AI will search public records and rank phone numbers by confidence score.';
   }).catch(function(){});
+}
+
+// ── BatchSkipTracing Export / Import ─────────────────────────
+
+function exportForBatchSkip() {
+  var filter = document.getElementById('export-filter');
+  var value  = filter ? filter.value : 'untraced';
+  var btn    = document.querySelector('#s-import .btn-g');
+  if (btn) { btn.textContent = '⏳ Loading...'; btn.disabled = true; }
+
+  // Build API query
+  var path = '/api/leads';
+  if (value === 'untraced') path += '?skip_traced=false';
+  else if (value === 'VA')  path += '?state=VA';
+  else if (value === 'MD')  path += '?state=MD';
+  else if (value === 'DC')  path += '?state=DC';
+
+  apiGet(path).then(function(leads) {
+    if (btn) { btn.textContent = '⬇ Export CSV'; btn.disabled = false; }
+    if (!Array.isArray(leads) || leads.length === 0) {
+      alert('No leads found for this filter.');
+      return;
+    }
+
+    // Filter untraced if needed
+    if (value === 'untraced') {
+      leads = leads.filter(function(l) { return !l.skip_traced; });
+    }
+
+    // Build BatchSkipTracing CSV format
+    // Required columns: first_name, last_name, property_address, property_city, property_state, property_zip
+    var rows = ['id,first_name,last_name,property_address,property_city,property_state,property_zip,mailing_address'];
+
+    leads.forEach(function(l) {
+      var nameParts = (l.owner_name || '').split(' ');
+      var first     = nameParts[0] || '';
+      var last      = nameParts.slice(1).join(' ') || '';
+      var addrParts = (l.property_address || '').split(',');
+      var street    = (addrParts[0] || '').trim();
+      var city      = l.city || (addrParts[1] || '').trim();
+      var state     = l.state || '';
+      var zip       = l.zip || '';
+      var mailing   = l.mailing_address || '';
+
+      // Escape CSV fields
+      var esc = function(v) { return '"' + (v || '').replace(/"/g, '""') + '"'; };
+
+      rows.push([
+        esc(l.id), esc(first), esc(last), esc(street),
+        esc(city), esc(state), esc(zip), esc(mailing)
+      ].join(','));
+    });
+
+    // Download CSV
+    var csv  = rows.join('\n');
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'prolistings_batchskip_' + new Date().toISOString().split('T')[0] + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    alert('✓ Exported ' + leads.length + ' leads!\n\nNext steps:\n1. Go to batchskiptracing.com\n2. Upload this CSV file\n3. Download the results CSV\n4. Come back here and import the results');
+  }).catch(function() {
+    if (btn) { btn.textContent = '⬇ Export CSV'; btn.disabled = false; }
+    alert('Error loading leads');
+  });
+}
+
+
+function importBatchSkipResults(input) {
+  var file = input.files[0];
+  if (!file) return;
+
+  var statusPanel = document.getElementById('import-status');
+  var statusTitle = document.getElementById('import-status-title');
+  var statusBody  = document.getElementById('import-status-body');
+
+  statusPanel.style.display = 'block';
+  statusTitle.textContent   = 'Importing ' + file.name + '...';
+  statusBody.innerHTML      = '<div style="color:var(--ink3)">Reading file...</div>';
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var text    = e.target.result;
+      var lines   = text.split('\n').filter(function(l) { return l.trim(); });
+      var headers = lines[0].split(',').map(function(h) { return h.trim().replace(/"/g, '').toLowerCase(); });
+
+      // Map BatchSkipTracing result columns
+      // Common column names from BST results:
+      var colMap = {
+        id:        findCol(headers, ['id', 'lead_id', 'record_id']),
+        phone1:    findCol(headers, ['phone1', 'phone_1', 'mobile', 'cell', 'primary_phone']),
+        phone2:    findCol(headers, ['phone2', 'phone_2', 'home', 'secondary_phone']),
+        phone3:    findCol(headers, ['phone3', 'phone_3', 'other', 'tertiary_phone']),
+        email:     findCol(headers, ['email', 'email_address']),
+        owner:     findCol(headers, ['owner', 'owner_name', 'full_name', 'name']),
+        mailing:   findCol(headers, ['mailing_address', 'mail_address', 'mailing']),
+        firstname: findCol(headers, ['first_name', 'firstname', 'first']),
+        lastname:  findCol(headers, ['last_name', 'lastname', 'last']),
+      };
+
+      var updates  = [];
+      var skipped  = 0;
+      var updated  = 0;
+      var errors   = 0;
+
+      for (var i = 1; i < lines.length; i++) {
+        var cols = parseCSVLine(lines[i]);
+        if (cols.length < 2) continue;
+
+        var id = colMap.id !== -1 ? cols[colMap.id] : '';
+        id = id.replace(/"/g, '').trim();
+
+        if (!id) { skipped++; continue; }
+
+        var phone1 = colMap.phone1 !== -1 ? cols[colMap.phone1] : '';
+        var phone2 = colMap.phone2 !== -1 ? cols[colMap.phone2] : '';
+        var phone3 = colMap.phone3 !== -1 ? cols[colMap.phone3] : '';
+        var email  = colMap.email  !== -1 ? cols[colMap.email]  : '';
+        var owner  = colMap.owner  !== -1 ? cols[colMap.owner]  : '';
+        var mailing = colMap.mailing !== -1 ? cols[colMap.mailing] : '';
+
+        // Build owner from first+last if no owner column
+        if (!owner && colMap.firstname !== -1 && colMap.lastname !== -1) {
+          owner = (cols[colMap.firstname] || '') + ' ' + (cols[colMap.lastname] || '');
+        }
+
+        // Clean values
+        var clean = function(v) { return (v || '').replace(/"/g, '').trim(); };
+
+        updates.push({
+          id:      clean(id),
+          phone_1: clean(phone1),
+          phone_2: clean(phone2),
+          phone_3: clean(phone3),
+          email:   clean(email),
+          owner:   clean(owner),
+          mailing: clean(mailing),
+        });
+      }
+
+      statusBody.innerHTML = '<div>Found <strong>' + updates.length + '</strong> records. Updating leads...</div>';
+
+      // Send updates to API in batches
+      var processed = 0;
+      var promises  = updates.map(function(u) {
+        var payload = { skip_traced: true, skip_traced_at: new Date().toISOString() };
+        if (u.phone_1) payload.phone_1 = u.phone_1;
+        if (u.phone_2) payload.phone_2 = u.phone_2;
+        if (u.phone_3) payload.phone_3 = u.phone_3;
+        if (u.email)   payload.email   = u.email;
+        if (u.mailing) payload.mailing_address = u.mailing;
+        if (u.owner)   payload.owner_name = u.owner;
+
+        return apiPut('/api/leads/' + u.id, payload).then(function() {
+          processed++;
+          statusBody.innerHTML = '<div>Updating... <strong>' + processed + '/' + updates.length + '</strong></div>';
+        }).catch(function() { errors++; });
+      });
+
+      Promise.all(promises).then(function() {
+        statusTitle.textContent = '✅ Import Complete';
+        statusBody.innerHTML =
+          '<div style="color:var(--green);font-weight:600;margin-bottom:8px">Import finished!</div>' +
+          '<div>✓ Updated: <strong>' + (updates.length - errors) + '</strong> leads</div>' +
+          (errors   ? '<div style="color:var(--red)">✗ Errors: ' + errors + '</div>' : '') +
+          (skipped  ? '<div style="color:var(--ink3)">Skipped (no ID): ' + skipped + '</div>' : '') +
+          '<div style="margin-top:12px"><button class="btn btn-g" onclick="loadLeads();loadDashboard()">✓ View Updated Leads</button></div>';
+
+        // Reset file input
+        input.value = '';
+        // Refresh leads
+        loadLeads();
+        loadDashboard();
+      });
+
+    } catch(err) {
+      statusTitle.textContent = '❌ Import Error';
+      statusBody.innerHTML = '<div style="color:var(--red)">Error reading file: ' + err.message + '</div>';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function findCol(headers, names) {
+  for (var i = 0; i < names.length; i++) {
+    var idx = headers.indexOf(names[i]);
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
+function parseCSVLine(line) {
+  var result = [];
+  var current = '';
+  var inQuotes = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
 }
 
 // Override nav to load live data when switching sections
