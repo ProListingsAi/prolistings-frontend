@@ -437,29 +437,35 @@ textarea.fi{resize:vertical;min-height:80px}
 
   <!-- SKIP TRACE -->
   <div class="sec" id="s-skiptrace">
-    <div class="g2" style="margin-bottom:16px">
-      <div class="panel">
-        <div class="ph"><div><div class="pht">⚡ AI-Powered Skip Trace</div><div style="font-family:var(--mono);font-size:9px;color:var(--ink3);margin-top:2px">Claude AI · 15+ public data sources</div></div></div>
-        <div style="padding:18px">
-          <div class="frow"><label class="fl">Owner Name</label><input class="fi" id="st-name" placeholder="Full legal name"></div>
-          <div class="frow"><label class="fl">Property Address</label><input class="fi" id="st-addr" placeholder="123 Main St, City, State ZIP"></div>
-          <div class="frow"><label class="fl">County</label><select class="fsel"><option>Fairfax County, VA</option><option>Prince William, VA</option><option>Montgomery County, MD</option><option>Prince George's, MD</option><option>Washington, DC</option></select></div>
-          <div class="abox ab-i">AI searches: county deed records · voter rolls · utility connections · DMV cross-refs · relative finder</div>
-          <button class="btn btn-g" style="width:100%" onclick="runSingleSkipTrace()">⚡ Run AI Skip Trace</button>
+    <div class="panel" style="margin-bottom:16px">
+      <div class="ph">
+        <div>
+          <div class="pht" id="st-pending-title">⚡ AI Skip Trace — Loading...</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--ink3);margin-top:2px">Claude AI · County deed records · Voter rolls · Public records · Multi-source confidence scoring</div>
         </div>
       </div>
-      <div class="panel">
-        <div class="ph"><div class="pht">Bulk Trace — 2 Pending</div></div>
-        <div style="padding:18px">
-          <div class="frow"><label class="fl">Run For</label><select class="fsel"><option>All un-traced leads (2)</option><option>Hot leads only</option><option>All VA leads</option><option>All MD leads</option><option>All DC leads</option></select></div>
-          <div class="frow"><label class="fl">Confidence Threshold</label><select class="fsel"><option>High only (85%+)</option><option>Medium+ (60%+)</option><option>All results</option></select></div>
-          <div class="abox ab-o">2 leads will be traced. AI will cross-reference ownership data and rank matches by confidence score.</div>
+      <div style="padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:24px">
+        <!-- Single Lead Trace -->
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--ink3);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Single Lead Lookup</div>
+          <div class="frow"><label class="fl">Owner Name (optional)</label><input class="fi" id="st-name" placeholder="Full legal name — leave blank to auto-detect"></div>
+          <div class="frow"><label class="fl">Property Address</label><input class="fi" id="st-addr" placeholder="123 Main St, City, State ZIP"></div>
+          <div class="abox ab-i" style="margin-bottom:12px">Searches county deed records · voter rolls · utility connections · DMV cross-refs · TruePeopleSearch · FastPeopleSearch</div>
+          <button class="btn btn-g" style="width:100%" onclick="runSingleSkipTrace()">⚡ Run AI Skip Trace</button>
+        </div>
+        <!-- Bulk Trace -->
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--ink3);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Bulk Trace</div>
+          <div class="frow"><label class="fl">Run For</label><select class="fsel" id="bulk-trace-filter"><option value="untraced">All un-traced leads</option><option value="hot">Hot leads only (≤30 days to auction)</option><option value="VA">Virginia leads only</option><option value="MD">Maryland leads only</option><option value="DC">Washington DC leads only</option></select></div>
+          <div class="frow"><label class="fl">Confidence Threshold</label><select class="fsel" id="bulk-confidence"><option value="high">High only (85%+)</option><option value="medium">Medium+ (60%+)</option><option value="all">All results</option></select></div>
+          <div class="abox ab-o" id="bulk-trace-info" style="margin-bottom:12px">AI will search public records and cross-reference ownership data for each lead.</div>
           <button class="btn btn-g" style="width:100%" onclick="runBulkSkipTrace()">⚡ Run Bulk Trace</button>
         </div>
       </div>
     </div>
+    <!-- Results -->
     <div class="panel" id="st-results" style="display:none">
-      <div class="ph"><div class="pht">AI Results</div><button class="btn btn-g btn-sm">Add All to CRM</button></div>
+      <div class="ph"><div class="pht">Skip Trace Results</div><button class="btn btn-g btn-sm" onclick="document.getElementById('st-results').style.display='none'">✕ Close</button></div>
       <div style="padding:14px" id="st-body"></div>
     </div>
   </div>
@@ -1849,10 +1855,13 @@ function triggerScraper() {
 // ── Skip Trace Functions ──────────────────────────────────────
 
 function runBulkSkipTrace() {
-  var btn = document.querySelector('#s-skiptrace .btn-g');
+  var btn    = document.querySelector('#s-skiptrace .btn-g');
+  var filter = document.getElementById('bulk-trace-filter');
+  var value  = filter ? filter.value : 'untraced';
+
   if (btn) { btn.textContent = '⏳ Tracing...'; btn.disabled = true; }
 
-  apiPost('/api/skip-trace/batch', {}).then(function(res) {
+  apiPost('/api/skip-trace/batch', {filter: value}).then(function(res) {
     if (btn) { btn.textContent = '⚡ Run Bulk Trace'; btn.disabled = false; }
     if (res.ok) {
       alert('Skip trace started! ' + res.message + '\nCheck back in 15-20 minutes for results.');
@@ -1899,35 +1908,50 @@ function runSingleSkipTrace() {
 }
 
 function showSkipTraceResult(result) {
-  var html = '<div style="padding:16px;background:var(--green4);border-radius:8px;margin-top:12px">';
-  html += '<div style="font-weight:600;margin-bottom:8px">✓ Skip Trace Complete</div>';
-  if (result.owner_name) html += '<div>Owner: <strong>' + result.owner_name + '</strong></div>';
-  if (result.phone_1)    html += '<div>Phone 1: <strong>' + result.phone_1 + '</strong> (' + result.confidence + '% confidence)</div>';
-  if (result.phone_2)    html += '<div>Phone 2: ' + result.phone_2 + '</div>';
-  if (result.phone_3)    html += '<div>Phone 3: ' + result.phone_3 + '</div>';
-  if (result.mailing_address) html += '<div>Mailing: ' + result.mailing_address + '</div>';
-  if (result.notes && result.notes.length) html += '<div style="margin-top:8px;font-size:11px;color:var(--ink3)">' + result.notes.join(' · ') + '</div>';
+  var panel = document.getElementById('st-results');
+  var body  = document.getElementById('st-body');
+  if (!panel || !body) return;
+
+  var conf  = result.confidence || 0;
+  var confColor = conf >= 75 ? 'var(--green)' : conf >= 45 ? 'var(--amber)' : 'var(--red)';
+
+  var html = '<div style="padding:16px;background:var(--green4);border-radius:8px;border:1px solid var(--border)">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
+  html += '<div style="font-weight:600">✓ Skip Trace Complete</div>';
+  html += '<span style="font-family:var(--mono);font-size:11px;color:' + confColor + '">' + conf + '% confidence</span>';
+  html += '</div>';
+  if (result.owner_name && result.owner_name !== 'Unknown') html += '<div style="margin-bottom:6px"><span style="color:var(--ink3);font-size:11px">OWNER</span><br><strong>' + result.owner_name + '</strong> <span style="color:var(--ink3);font-size:11px">(' + (result.vesting_type || 'individual') + ')</span></div>';
+  if (result.phone_1)        html += '<div style="margin-bottom:4px"><span style="color:var(--ink3);font-size:11px">PHONE 1</span><br><strong style="font-family:var(--mono)">' + result.phone_1 + '</strong></div>';
+  if (result.phone_2)        html += '<div style="margin-bottom:4px"><span style="color:var(--ink3);font-size:11px">PHONE 2</span><br><span style="font-family:var(--mono)">' + result.phone_2 + '</span></div>';
+  if (result.phone_3)        html += '<div style="margin-bottom:4px"><span style="color:var(--ink3);font-size:11px">PHONE 3</span><br><span style="font-family:var(--mono)">' + result.phone_3 + '</span></div>';
+  if (result.mailing_address) html += '<div style="margin-bottom:4px"><span style="color:var(--ink3);font-size:11px">MAILING</span><br>' + result.mailing_address + '</div>';
+  if (result.sources && result.sources.length) html += '<div style="margin-top:8px;font-size:11px;color:var(--ink3)">Sources: ' + result.sources.join(', ') + '</div>';
+  if (result.notes && result.notes.length) {
+    var notes = result.notes.filter(function(n) { return n && n.length > 5; });
+    if (notes.length) html += '<div style="margin-top:8px;font-size:11px;color:var(--ink3);border-top:1px solid var(--border);padding-top:8px">' + notes.join('<br>') + '</div>';
+  }
   html += '</div>';
 
-  var container = document.querySelector('#s-skiptrace .panel');
-  if (container) {
-    var existing = container.querySelector('.st-result');
-    if (existing) existing.remove();
-    var div = document.createElement('div');
-    div.className = 'st-result';
-    div.innerHTML = html;
-    container.appendChild(div);
-  }
+  body.innerHTML = html;
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth' });
 }
 
 function updateSkipTraceCount() {
   apiGet('/api/stats').then(function(stats) {
     if (!stats) return;
     var pending = (stats.total || 0) - (stats.skip_traced || 0);
+    var traced  = stats.skip_traced || 0;
+    var total   = stats.total || 0;
+
     var badge = document.querySelector('.ni[onclick*="skiptrace"] .nbadge');
     if (badge) badge.textContent = pending;
-    var title = document.querySelector('#s-skiptrace .pht');
-    if (title) title.textContent = 'Bulk Trace — ' + pending + ' Pending';
+
+    var title = document.getElementById('st-pending-title');
+    if (title) title.textContent = '⚡ AI Skip Trace — ' + pending + ' Pending (' + traced + '/' + total + ' traced)';
+
+    var info = document.getElementById('bulk-trace-info');
+    if (info) info.textContent = pending + ' leads pending skip trace. AI will search public records and rank phone numbers by confidence score.';
   }).catch(function(){});
 }
 
