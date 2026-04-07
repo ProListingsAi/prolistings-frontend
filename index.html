@@ -629,13 +629,12 @@ textarea.fi{resize:vertical;min-height:80px}
           </div>
         </div>
         <div class="frow"><div class="fl">Phone Numbers</div>
-          <div style="font-size:12px;line-height:2.4">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-family:var(--mono)">(703) 555-0142</span><span class="pill" style="background:var(--green2);color:var(--green3)">Mobile</span><button class="btn btn-sm btn-g">Call</button></div>
-            <div style="display:flex;align-items:center;gap:8px"><span style="font-family:var(--mono)">(703) 555-0388</span><span class="pill" style="background:var(--blue2);color:var(--blue)">Home</span><button class="btn btn-sm">Call</button></div>
+          <div style="font-size:12px;line-height:2.4" id="m-phones">
+            <div style="color:var(--ink4);font-size:11px">No phones yet — run skip trace</div>
           </div>
         </div>
-        <div class="frow"><div class="fl">Email</div><div style="font-size:12px"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="deacb3b1acacb7adb1b0e9ea9eb9b3bfb7b2f0bdb1b3">[email&#160;protected]</a></div></div>
-        <div class="frow"><div class="fl">Mailing Address</div><div style="font-size:12px">1482 Oak Leaf Ct, Reston VA 20191</div></div>
+        <div class="frow"><div class="fl">Email</div><div style="font-size:12px" id="m-email">—</div></div>
+        <div class="frow"><div class="fl">Mailing Address</div><div style="font-size:12px" id="m-mailing">—</div></div>
         <div style="display:flex;gap:8px;margin-top:6px">
           <button class="btn btn-g btn-sm" style="flex:1" onclick="saveLeadChanges()">Save Changes</button>
           <button class="btn btn-sm" style="flex:1">Log Call</button>
@@ -644,21 +643,22 @@ textarea.fi{resize:vertical;min-height:80px}
       </div>
       <div id="mp" style="display:none">
         <div class="g2">
-          <div class="frow"><div class="fl">NOD Filed</div><div style="font-size:12px">January 12, 2026</div></div>
-          <div class="frow"><div class="fl">Filing Type</div><div style="font-size:12px">Notice of Default</div></div>
-          <div class="frow"><div class="fl">Auction Date</div><div style="font-size:12px;color:var(--amber);font-weight:500">May 15, 2026 — 45 days</div></div>
-          <div class="frow"><div class="fl">Est. Value</div><div style="font-size:12px">$520,000</div></div>
-          <div class="frow"><div class="fl">Loan Balance</div><div style="font-size:12px">~$410,000</div></div>
-          <div class="frow"><div class="fl">Est. Equity</div><div style="font-size:12px;color:var(--green);font-weight:500">~$110,000</div></div>
+          <div class="frow"><div class="fl">NOD Filed</div><div style="font-size:12px" id="m-nod-date">—</div></div>
+          <div class="frow"><div class="fl">Filing Type</div><div style="font-size:12px" id="m-filing-type">—</div></div>
+          <div class="frow"><div class="fl">Auction Date</div><div style="font-size:12px" id="m-auction-date">—</div></div>
+          <div class="frow"><div class="fl">Est. Value</div><div style="font-size:12px" id="m-est-value">—</div></div>
+          <div class="frow"><div class="fl">Loan Balance</div><div style="font-size:12px" id="m-loan-balance">—</div></div>
+          <div class="frow"><div class="fl">Est. Equity</div><div style="font-size:12px" id="m-est-equity">—</div></div>
+          <div class="frow"><div class="fl">County</div><div style="font-size:12px" id="m-county">—</div></div>
+          <div class="frow"><div class="fl">Source</div><div style="font-size:12px" id="m-source">—</div></div>
         </div>
       </div>
       <div id="mh" style="display:none">
-        <div class="cc"><div class="cch"><span>📞</span><span class="ccr" style="color:var(--amber)">Voicemail</span><span class="cct">Mar 28</span></div><div class="ccn">Left voicemail on home line. Will try again in 2 days.</div><div class="cca">AGENT: Marcus J.</div></div>
-        <div class="cc"><div class="cch"><span>📞</span><span class="ccr" style="color:var(--amber)">No Answer</span><span class="cct">Mar 25</span></div><div class="ccn">No answer on mobile.</div><div class="cca">AGENT: Marcus J.</div></div>
+        <div id="m-call-history"><div style="color:var(--ink4);font-size:12px;padding:12px">No calls logged yet.</div></div>
       </div>
       <div id="mn" style="display:none">
-        <textarea class="fi" rows="6">Owner still living in property. Well-maintained. May be open to quick cash sale given auction timeline.</textarea>
-        <button class="btn btn-g btn-sm" style="margin-top:10px">Save Notes</button>
+        <textarea class="fi" rows="6" id="m-notes" placeholder="Add notes about this lead..."></textarea>
+        <button class="btn btn-g btn-sm" style="margin-top:10px" onclick="saveLeadNotes()">Save Notes</button>
       </div>
     </div>
   </div>
@@ -1814,9 +1814,127 @@ function loadLeads() {
 function openLeadById(id) {
   apiGet('/api/leads/' + id).then(function(lead) {
     if (lead.error) return;
-    openLead(lead.owner_name, lead.property_address + ', ' + (lead.state||''), lead.status || 'new', null);
-    // Store lead ID for save
-    document.getElementById('m-status').dataset.leadId = id;
+
+    // Store current lead ID for save operations
+    window._currentLeadId = id;
+    window._currentLead   = lead;
+
+    // Header
+    var nameEl = document.getElementById('m-name');
+    if (nameEl) nameEl.textContent = lead.owner_name || 'Unknown Owner';
+
+    var addrEl = document.getElementById('m-addr');
+    if (addrEl) addrEl.textContent = lead.property_address + (lead.city ? ', ' + lead.city : '') + (lead.state ? ', ' + lead.state : '');
+
+    // Status
+    var statusSel = document.getElementById('m-status');
+    if (statusSel) statusSel.value = lead.status || 'new';
+    updatePill();
+
+    // Assigned
+    var assignedSel = document.getElementById('m-assigned');
+    if (assignedSel && lead.assigned_to) assignedSel.value = lead.assigned_to;
+
+    // Phone numbers
+    var phonesEl = document.getElementById('m-phones');
+    if (phonesEl) {
+      var phones = [lead.phone_1, lead.phone_2, lead.phone_3].filter(Boolean);
+      if (phones.length) {
+        phonesEl.innerHTML = phones.map(function(p, i) {
+          return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+            '<span style="font-family:var(--mono)">' + p + '</span>' +
+            (i === 0 ? '<span class="pill" style="background:var(--green2);color:var(--green3)">' + (lead.skip_confidence || '') + '% conf</span>' : '') +
+            '<button class="btn btn-sm btn-g" onclick="window.open(\'tel:' + p.replace(/\D/g,'') + '\')">Call</button>' +
+            '</div>';
+        }).join('');
+      } else {
+        phonesEl.innerHTML = '<div style="color:var(--ink4);font-size:11px">No phones yet — <a href="#" onclick="nav(null,\'skiptrace\')" style="color:var(--green)">run skip trace</a></div>';
+      }
+    }
+
+    // Email & mailing
+    var emailEl = document.getElementById('m-email');
+    if (emailEl) emailEl.textContent = lead.email || '—';
+
+    var mailingEl = document.getElementById('m-mailing');
+    if (mailingEl) mailingEl.textContent = lead.mailing_address || '—';
+
+    // Property tab
+    var fmt = function(val) { return val || '—'; };
+    var fmtMoney = function(val) { return val ? '$' + Number(val).toLocaleString() : '—'; };
+    var fmtDate  = function(val) { return val ? new Date(val).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}) : '—'; };
+
+    var nodEl = document.getElementById('m-nod-date');
+    if (nodEl) nodEl.textContent = fmtDate(lead.nod_date);
+
+    var ftEl = document.getElementById('m-filing-type');
+    if (ftEl) ftEl.textContent = fmt(lead.filing_type);
+
+    var auctEl = document.getElementById('m-auction-date');
+    if (auctEl) {
+      var days = lead.days_until_auction;
+      var daysStr = days !== null && days !== undefined ? ' — ' + days + ' days' : '';
+      auctEl.textContent = fmtDate(lead.auction_date) + daysStr;
+      auctEl.style.color = days <= 14 ? 'var(--red)' : days <= 30 ? 'var(--amber)' : '';
+      auctEl.style.fontWeight = days <= 30 ? '500' : '';
+    }
+
+    var valEl = document.getElementById('m-est-value');
+    if (valEl) valEl.textContent = fmtMoney(lead.est_value);
+
+    var loanEl = document.getElementById('m-loan-balance');
+    if (loanEl) loanEl.textContent = fmtMoney(lead.loan_balance);
+
+    var equityEl = document.getElementById('m-est-equity');
+    if (equityEl) {
+      equityEl.textContent = fmtMoney(lead.est_equity);
+      if (lead.est_equity > 0) { equityEl.style.color = 'var(--green)'; equityEl.style.fontWeight = '500'; }
+    }
+
+    var countyEl = document.getElementById('m-county');
+    if (countyEl) countyEl.textContent = fmt(lead.county);
+
+    var sourceEl = document.getElementById('m-source');
+    if (sourceEl) sourceEl.textContent = fmt(lead.source);
+
+    // Notes
+    var notesEl = document.getElementById('m-notes');
+    if (notesEl) notesEl.value = lead.notes || '';
+
+    // Load call history
+    loadCallHistory(id);
+
+    openM('lead-modal');
+  }).catch(function(e) {
+    console.error('Error loading lead:', e);
+  });
+}
+
+function saveLeadNotes() {
+  if (!window._currentLeadId) return;
+  var notes = document.getElementById('m-notes');
+  if (!notes) return;
+  apiPut('/api/leads/' + window._currentLeadId, { notes: notes.value })
+    .then(function() { alert('Notes saved!'); })
+    .catch(function() { alert('Error saving notes'); });
+}
+
+function loadCallHistory(leadId) {
+  var el = document.getElementById('m-call-history');
+  if (!el) return;
+  apiGet('/api/calls?lead_id=' + leadId).then(function(calls) {
+    if (!Array.isArray(calls) || calls.length === 0) {
+      el.innerHTML = '<div style="color:var(--ink4);font-size:12px;padding:12px">No calls logged yet.</div>';
+      return;
+    }
+    el.innerHTML = calls.map(function(c) {
+      var outcomeColor = c.outcome === 'interested' ? 'var(--green)' : c.outcome === 'voicemail' ? 'var(--amber)' : 'var(--ink3)';
+      return '<div class="cc"><div class="cch"><span>📞</span>' +
+        '<span class="ccr" style="color:' + outcomeColor + '">' + (c.outcome || 'Call') + '</span>' +
+        '<span class="cct">' + (c.created_at ? new Date(c.created_at).toLocaleDateString() : '') + '</span></div>' +
+        '<div class="ccn">' + (c.notes || '') + '</div>' +
+        '</div>';
+    }).join('');
   }).catch(function(){});
 }
 
@@ -1969,16 +2087,16 @@ nav = function(el, id) {
 // Override saveLeadChanges to save to API
 var _origSaveLeadChanges = saveLeadChanges;
 function saveLeadChanges() {
-  var leadId = document.getElementById('m-status') && document.getElementById('m-status').dataset.leadId;
+  var leadId = window._currentLeadId || (document.getElementById('m-status') && document.getElementById('m-status').dataset.leadId);
   if (!leadId) { _origSaveLeadChanges(); return; }
 
-  var newStatus = document.getElementById('m-status').value;
+  var newStatus  = document.getElementById('m-status').value;
   var assignedSel = document.getElementById('m-assigned');
-  var assignedId = assignedSel ? assignedSel.value : '';
+  var assignedId  = assignedSel ? assignedSel.value : '';
 
   apiPut('/api/leads/' + leadId, {
-    status: newStatus,
-    assigned_to: assignedId || null
+    status:      newStatus,
+    assigned_to: assignedId || null,
   }).then(function() {
     _origSaveLeadChanges();
     loadLeads();
