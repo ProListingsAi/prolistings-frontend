@@ -445,7 +445,7 @@ textarea.fi{resize:vertical;min-height:80px}
           <div class="frow"><label class="fl">Property Address</label><input class="fi" id="st-addr" placeholder="123 Main St, City, State ZIP"></div>
           <div class="frow"><label class="fl">County</label><select class="fsel"><option>Fairfax County, VA</option><option>Prince William, VA</option><option>Montgomery County, MD</option><option>Prince George's, MD</option><option>Washington, DC</option></select></div>
           <div class="abox ab-i">AI searches: county deed records · voter rolls · utility connections · DMV cross-refs · relative finder</div>
-          <button class="btn btn-g" style="width:100%" onclick="runTrace()">⚡ Run AI Skip Trace</button>
+          <button class="btn btn-g" style="width:100%" onclick="runSingleSkipTrace()">⚡ Run AI Skip Trace</button>
         </div>
       </div>
       <div class="panel">
@@ -454,7 +454,7 @@ textarea.fi{resize:vertical;min-height:80px}
           <div class="frow"><label class="fl">Run For</label><select class="fsel"><option>All un-traced leads (2)</option><option>Hot leads only</option><option>All VA leads</option><option>All MD leads</option><option>All DC leads</option></select></div>
           <div class="frow"><label class="fl">Confidence Threshold</label><select class="fsel"><option>High only (85%+)</option><option>Medium+ (60%+)</option><option>All results</option></select></div>
           <div class="abox ab-o">2 leads will be traced. AI will cross-reference ownership data and rank matches by confidence score.</div>
-          <button class="btn btn-g" style="width:100%">⚡ Run Bulk Trace</button>
+          <button class="btn btn-g" style="width:100%" onclick="runBulkSkipTrace()">⚡ Run Bulk Trace</button>
         </div>
       </div>
     </div>
@@ -1846,7 +1846,92 @@ function triggerScraper() {
   });
 }
 
-// Patch nav to load live data when switching sections
+// ── Skip Trace Functions ──────────────────────────────────────
+
+function runBulkSkipTrace() {
+  var btn = document.querySelector('#s-skiptrace .btn-g');
+  if (btn) { btn.textContent = '⏳ Tracing...'; btn.disabled = true; }
+
+  apiPost('/api/skip-trace/batch', {}).then(function(res) {
+    if (btn) { btn.textContent = '⚡ Run Bulk Trace'; btn.disabled = false; }
+    if (res.ok) {
+      alert('Skip trace started! ' + res.message + '\nCheck back in 15-20 minutes for results.');
+      updateSkipTraceCount();
+    } else {
+      alert('Error: ' + (res.error || 'Could not start skip trace'));
+    }
+  }).catch(function() {
+    if (btn) { btn.textContent = '⚡ Run Bulk Trace'; btn.disabled = false; }
+    alert('Could not connect to server');
+  });
+}
+
+function runSingleSkipTrace() {
+  var name    = document.getElementById('st-name');
+  var address = document.getElementById('st-address');
+  var btn     = document.querySelector('#s-skiptrace .btn-g');
+
+  if (!name || !address) return;
+  var ownerName    = name.value.trim();
+  var propertyAddr = address.value.trim();
+
+  if (!propertyAddr) {
+    alert('Please enter a property address');
+    return;
+  }
+
+  if (btn) { btn.textContent = '⏳ Tracing...'; btn.disabled = true; }
+
+  // Create a temporary lead and trace it
+  apiPost('/api/leads', {
+    owner_name:       ownerName || 'Unknown',
+    property_address: propertyAddr,
+    status:           'new',
+  }).then(function(lead) {
+    return apiPost('/api/skip-trace/' + lead.id, {});
+  }).then(function(result) {
+    if (btn) { btn.textContent = '⚡ Run AI Skip Trace'; btn.disabled = false; }
+    showSkipTraceResult(result);
+  }).catch(function(e) {
+    if (btn) { btn.textContent = '⚡ Run AI Skip Trace'; btn.disabled = false; }
+    alert('Error running skip trace');
+  });
+}
+
+function showSkipTraceResult(result) {
+  var html = '<div style="padding:16px;background:var(--green4);border-radius:8px;margin-top:12px">';
+  html += '<div style="font-weight:600;margin-bottom:8px">✓ Skip Trace Complete</div>';
+  if (result.owner_name) html += '<div>Owner: <strong>' + result.owner_name + '</strong></div>';
+  if (result.phone_1)    html += '<div>Phone 1: <strong>' + result.phone_1 + '</strong> (' + result.confidence + '% confidence)</div>';
+  if (result.phone_2)    html += '<div>Phone 2: ' + result.phone_2 + '</div>';
+  if (result.phone_3)    html += '<div>Phone 3: ' + result.phone_3 + '</div>';
+  if (result.mailing_address) html += '<div>Mailing: ' + result.mailing_address + '</div>';
+  if (result.notes && result.notes.length) html += '<div style="margin-top:8px;font-size:11px;color:var(--ink3)">' + result.notes.join(' · ') + '</div>';
+  html += '</div>';
+
+  var container = document.querySelector('#s-skiptrace .panel');
+  if (container) {
+    var existing = container.querySelector('.st-result');
+    if (existing) existing.remove();
+    var div = document.createElement('div');
+    div.className = 'st-result';
+    div.innerHTML = html;
+    container.appendChild(div);
+  }
+}
+
+function updateSkipTraceCount() {
+  apiGet('/api/stats').then(function(stats) {
+    if (!stats) return;
+    var pending = (stats.total || 0) - (stats.skip_traced || 0);
+    var badge = document.querySelector('.ni[onclick*="skiptrace"] .nbadge');
+    if (badge) badge.textContent = pending;
+    var title = document.querySelector('#s-skiptrace .pht');
+    if (title) title.textContent = 'Bulk Trace — ' + pending + ' Pending';
+  }).catch(function(){});
+}
+
+// Override nav to load live data when switching sections
 var _navOriginal = nav;
 nav = function(el, id) {
   _navOriginal(el, id);
@@ -1854,6 +1939,7 @@ nav = function(el, id) {
   if (id === 'leads')     loadLeads();
   if (id === 'dashboard') loadDashboard();
   if (id === 'team')      loadTeamFromApi();
+  if (id === 'skiptrace') updateSkipTraceCount();
 };
 
 // Override saveLeadChanges to save to API
